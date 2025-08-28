@@ -3,6 +3,8 @@ import Mathlib.Tactic
 
 open Lean Elab Tactic Term Meta
 
+--set_option pp.universes true
+
 -- From: https://cs.ioc.ee/ewscs/2009/dybjer/mainPalmse-revised.pdf
 
 inductive Ty : Type
@@ -51,6 +53,7 @@ instance convr_Setoid : Setoid (Exp α) :=
 
 def ExpClass α := Quotient (@convr_Setoid α)
 
+/-
 lemma convr_eq :
   (@convr) = (λ α => λ (e1 e2 : Exp α) => ((⟦e1⟧ : ExpClass α) = ⟦e2⟧)) :=
   by
@@ -60,14 +63,14 @@ lemma convr_eq :
     apply Iff.intro
     exact λ h => Quotient.sound h
     exact λ h => Quotient.exact h
-
+-/
 
 /-Prints out the current Environment.
 -/
 def printEnv : CoreM Unit := do
   let env ← getEnv
   for (name, info)
-    in (env.constants).toList.take 100 do
+    in (env.constants).toList.take 150 do
         let type := info.type
         logInfo s!"{name} : {type}"
 elab "printEnv" : tactic => do printEnv
@@ -198,22 +201,65 @@ def addR_eq (R : Name) (R_Setoid : Name) : TermElabM Unit := do
   let pf ← instantiateMVars pf
 
   -- Add "R_eq : R = λ x₁ ⋯ xₙ e1 e2 => ⟦e1⟧ = ⟦e2⟧" to the environment
+  let env              := ← getEnv
+  let restrictedPrefix := env.asyncPrefix?.casesOn' ("") (λ name => name.toString ++ ".")
   let decl := Declaration.thmDecl {
-    name        := (R.toString ++ "_eq" ++ "'").toName
+    name        := (restrictedPrefix ++ R.toString ++ "_eq").toName
     levelParams := []
     type        := type
     value       := pf
   }
-  addAndCompile decl
+  addDecl decl
+  compileDecl decl
+
+
+
 elab "addR_eq" R:name R_Setoid:name : tactic => do addR_eq R.getName R_Setoid.getName
 
 
+-- R        : (x₁ : T₁) → (x₂ : T₂) → ⋯ → (xₙ : Tₙ) → (_ : X) → (_ : X) → Prop
+-- R_Setoid : (x₁ : T₁) → (x₂ : T₂) → ⋯ → (xₙ : Tₙ) → Setoid X
+def translate (R : Name) (R_Setoid : Name) : TacticM Unit :=
+  withMainContext do
+    -- Add "R_eq : R = λ x₁ ⋯ xₙ e1 e2 => ⟦e1⟧ = ⟦e2⟧" to the environment
+    let env       := ← getEnv
+    let restrictedPrefix := env.asyncPrefix?.casesOn' ("") (λ name => name.toString ++ ".")
+    let R_eq      := (restrictedPrefix ++ R.toString ++ "_eq").toName
+    if ! env.contains R_eq
+    then
+      addR_eq R R_Setoid
 
+    -- Revert all localHyps (last-to-first localHyps)
+    let localHyps := (← getLocalHyps).map (λ expr => (expr.fvarId!))
+    let goal      := ← getMainGoal
+    let (_, goal) := ← goal.revert (preserveOrder := True) (localHyps)
+    replaceMainGoal [goal]
 
+    -- Generalize on R
+    let R_Ident    := mkIdent R
+    let R'_Ident   := mkIdent (R.toString ++ "'").toName
+    let eq_Ident  := mkIdent ("eq").toName
+    evalTactic (← `(tactic | generalize $eq_Ident:ident : (@$R_Ident:ident) = $R'_Ident:ident))
 
+    -- Rewrite "R_eq : R = R_eq : R = (λ x₁ ⋯ xₙ e1 e2 => ⟦e1⟧ = ⟦e2⟧)"
+    -- at "eq : R = R'"
+    let R_eq_Ident := mkIdent R_eq
+    evalTactic (← `(tactic | rewrite [($R_eq_Ident:ident)] at ($eq_Ident:ident)))
 
+    -- Substitute "eq : (λ x₁ ⋯ xₙ e1 e2 => ⟦e1⟧ = ⟦e2⟧)  =  R'" everywhere
+    evalTactic (← `(tactic | subst ($eq_Ident:ident)))
 
+    -- Beta-reduce the goal
+    evalTactic (← `(tactic | beta_reduce))
 
+    -- Re-intro all our localHyps (first-to-last localHyps)
+    let goal      := ← getMainGoal
+    let localHyps := (← localHyps.mapM (λ fvar => fvar.getUserName)).toList
+    let n := localHyps.length
+    let (_, goal) := ← goal.introN n (givenNames := localHyps)
+    replaceMainGoal [goal]
+
+elab "translate" R:name R_Setoid:name : tactic => do translate @R.getName @R_Setoid.getName
 
 /-
 Step 1: Revert EVERYTHING to get a single Target with an empty LocalCtxt
@@ -237,12 +283,47 @@ example {α : Ty} {a b : Exp α}
 
   revert aRb hf f b a α
   generalize eq : @convr = convr'
-  rewrite [convr_eq'] at eq
+  rewrite [convr_eq] at eq
   subst eq
   beta_reduce
   intro α a b f hf aRb
 
   exact hf a b aRb
+
+
+example {α : Ty} {x y z : Exp α}
+  (xRy : convr x y)
+  (zRy : convr z y)
+  : convr x z :=
+  by
+  translate `convr `convr_Setoid
+  grind
+
+
+example {α : Ty} {a b c : Exp α}
+                        (f : (x y : Exp α) → (@convr α x y) → Nat)
+                        (hf : (x y : Exp α) → (xRy : @convr α x y) → f x y xRy = 3)
+                        (junk : convr c b)
+                        (aRb : convr a b)
+                        : (f a b aRb) = 3 :=
+  by
+  translate `convr `convr_Setoid
+  exact hf a b aRb
+
+
+example {α : Ty} {β : Ty} {x : Exp α} (y : Exp β)
+  :  (⟦K ⬝ x ⬝ y⟧ : ExpClass α) = ⟦x⟧ :=
+  by
+  have convr.K' := @convr.K
+  translate `convr `convr_Setoid
+  exact convr.K'
+
+
+example : (⟦a⟧ : ExpClass (β ⇒' α)) = ⟦b⟧ → (⟦c⟧ : ExpClass β) = ⟦d⟧ →  (⟦a ⬝ c⟧ : ExpClass α) = ⟦b ⬝ d⟧ :=
+  by
+  have convr.app' := @convr.app
+  translate `convr `convr_Setoid
+  exact fun a_1 a_2 ↦ convr.app' a_1 a_2
 
 
 
@@ -269,7 +350,7 @@ instance {α_Setoid : Setoid α} : SetoidRewrite α :=
                                     }
 
 
-lemma ExpClass.test :
+lemma ExpClass_test :
   (λ α => @convr α) = (λ α => λ (e1 e2 : Exp α) => ((⟦e1⟧ : ExpClass α) = ⟦e2⟧)) :=
   by
 
@@ -283,7 +364,7 @@ lemma ExpClass.test :
     exact fun a => Quotient.sound a
     exact fun a => Quotient.exact a
 
-lemma ExpClass.test2 {α} {e1 e2 : Exp α} :
+lemma ExpClass_test2 {α} {e1 e2 : Exp α} :
   (@convr α e1 e2) = (((⟦e1⟧ : ExpClass α) = ⟦e2⟧)) :=
   by
   show_term
@@ -295,196 +376,44 @@ lemma ExpClass.test2 {α} {e1 e2 : Exp α} :
 
 def Eq' : {α : Ty} → (Exp α) → (Exp α) → Prop := λ {α : Ty} (e1 e2 : Exp α) => ((⟦e1⟧ : ExpClass α) = ⟦e2⟧)
 
-lemma ExpClass.def {α : Ty} :
-  (@convr α) = (λ (e1 e2 : Exp α) => ((⟦e1⟧ : ExpClass α) = ⟦e2⟧)) :=
-  by
-  apply funext ; intro e1
-  apply funext ; intro e2
-  apply propext
-  apply Iff.intro
-  exact fun a => Quotient.sound a
-  exact fun a => Quotient.exact a
 
-
-
-
-
-def translate (hyp : TSyntax `Lean.Parser.Tactic.rwRule) : TacticM Unit := do
-
-    -- Define a new constant `eq : 0 = 0 := rfl`
-  let decl := Declaration.defnDecl {
-    name        := ("Nat" ++ "_JUNK!!").toName
-    levelParams := []
-    type        := ← mkEq (mkNatLit 0) (mkNatLit 0)
-    value       := mkAppN (mkConst ``Eq.refl [1]) #[(.const `Nat []), (mkNatLit 0)]
-    --value       := sorry
-    hints       := ReducibilityHints.opaque
-    safety      := DefinitionSafety.safe
-  }
-
-  -- Add it to the environment
-  addAndCompile decl
-
-
-  evalTactic $ ← `(tactic| simp_rw [$hyp] at *)
-elab "translate" hyp:Parser.Tactic.rwRule : tactic => do translate hyp
-
-open convr
-
-set_option pp.proofs true
-
-
-
-example {α : Ty} {a b : Exp α}
-                        (f : (x y : Exp α) → (@convr α x y) → Nat)
-                        (hf : (x y : Exp α) → (xRy : @convr α x y) → f x y xRy = 3)
-                        (aRb : convr a b)
-                        : (f a b aRb) = 3 :=
-  by
-  printEnv
-
-  revert aRb hf f b a α
-  generalize eq : @convr = convr'
-  rewrite [convr_eq] at eq
-  subst eq
-  beta_reduce
-  intro α a b f hf aRb
-
-  exact hf a b aRb
-
-example : (⟦a⟧ : ExpClass (β ⇒' α)) = ⟦b⟧ → (⟦c⟧ : ExpClass β) = ⟦d⟧ →  (⟦a ⬝ c⟧ : ExpClass α) = ⟦b ⬝ d⟧ :=
-  by
-    have convr.app' := @convr.app
-
-    revert convr.app' d c b a α β
-    change
-      (λ (convr' : {α : Ty} → Exp α → Exp α → Prop) =>
-        ((∀ {β α : Ty} {a b : Exp (β ⇒' α)} {c d : Exp β},
-          (∀ {α β : Ty} {a b : Exp (β ⇒' α)} {c d : Exp β}, convr' a b → convr' c d → convr' (a ⬝ c) (b ⬝ d)) →
-          ⟦a⟧ = ⟦b⟧ → ⟦c⟧ = ⟦d⟧ → ⟦a ⬝ c⟧ = ⟦b ⬝ d⟧)))
-      @convr
-    rewrite [convr_eq]
-    beta_reduce
-    intro β α a b c d convr.app'
-
-    exact fun a_1 a_2 ↦ convr.app' a_1 a_2
-
-
-example {α : Ty} {x y z : Exp α}
-  (xRy : convr x y)
-  (zRy : convr z y)
-  : convr x z :=
-  by
-
-  --show_term simp_rw [ExpClass.test2] at xRy
-  --show_term simp_rw [ExpClass.test] at xRy
-
-  have hyp : ∀ a b k : Exp α, (h : convr a b) → (f : ∀ {a' b'}, convr a' b' → convr b' a') → ((convr x k → convr k x) ∧ ((f $ f h) = h) )  := sorry
-
-  --show_term rewrite (occs := .pos [1,2,3,6]) [ExpClass.def] at hyp
-
-  revert hyp zRy xRy z y x α
-  generalize eq : @convr = R ; rewrite [@ExpClass.test] at eq
-
-  show_term rewrite (occs := .pos []) [@ExpClass.test2]
-
-
-  generalize eq : convr = R at xRy
-
-
-  printLocalCtxt
-  translate ExpClass.test
-  printEnv
-
-
-
-  grind
-
-
-example {α : Ty} {β : Ty} {x : Exp α} (y : Exp β)
-  :  (⟦K ⬝ x ⬝ y⟧ : ExpClass α) = ⟦x⟧ :=
+lemma ExpClass_K {α : Ty} {β : Ty} {x : Exp α} (y : Exp β) : (⟦K ⬝ x ⬝ y⟧ : ExpClass α) = ⟦x⟧ :=
   by
     have convr.K' := @convr.K
-
-    --translate ExpClass.test
-    printEnv
-
-    suffices False ∧ ((⟦K ⬝ x ⬝ y⟧ : ExpClass α) = ⟦x⟧) by aesop
-    constructor
-    ·
-
-      translate ExpClass.test
-      sorry
-
-    · printEnv
-      printLocalCtxt
-      translate ExpClass.test
-      printEnv
-      printLocalCtxt
-      apply convr.K'
-
-
-
-
-
-
-
-
-
-
-
--- Checks that the given
-
-
--- Finds the Setoid Instance for the given Inductive Relation
-
-
-
-lemma ExpClass.K {α : Ty} {β : Ty} {x : Exp α} (y : Exp β) : (⟦K ⬝ x ⬝ y⟧ : ExpClass α) = ⟦x⟧ :=
-  by
-    have convr.K' := @convr.K
-    simp_rw [ExpClass.def] at *; dsimp [Eq'] at *
+    translate `convr `convr_Setoid
     apply convr.K'
 
-lemma ExpClass.S : (⟦S ⬝ x ⬝ y ⬝ z⟧ : ExpClass α) = ⟦x ⬝ z ⬝ (y ⬝ z)⟧ :=
+lemma ExpClass_S : (⟦S ⬝ x ⬝ y ⬝ z⟧ : ExpClass α) = ⟦x ⬝ z ⬝ (y ⬝ z)⟧ :=
   by
     have convr.S' := @convr.S
-
-    simp_rw [ExpClass.def] at *; dsimp [Eq'] at *
-
+    translate `convr `convr_Setoid
     apply convr.S'
 
 -- Congruence wrt Exp.app
-lemma ExpClass.app : (⟦a⟧ : ExpClass (β ⇒' α)) = ⟦b⟧ → (⟦c⟧ : ExpClass β) = ⟦d⟧ →  (⟦a ⬝ c⟧ : ExpClass α) = ⟦b ⬝ d⟧ :=
+lemma ExpClass_app : (⟦a⟧ : ExpClass (β ⇒' α)) = ⟦b⟧ → (⟦c⟧ : ExpClass β) = ⟦d⟧ →  (⟦a ⬝ c⟧ : ExpClass α) = ⟦b ⬝ d⟧ :=
   by
     have convr.app' := @convr.app
-
-    show_term simp_rw [ExpClass.def] at * --; dsimp [Eq'] at *
-
+    translate `convr `convr_Setoid
     apply convr.app'
 
-lemma ExpClass.app_arg : (⟦c⟧ : ExpClass β) = ⟦d⟧ →  (⟦a ⬝ c⟧ : ExpClass α) = ⟦a ⬝ d⟧
-  := fun a_1 => ExpClass.app rfl a_1
+lemma ExpClass_app_arg : (⟦c⟧ : ExpClass β) = ⟦d⟧ →  (⟦a ⬝ c⟧ : ExpClass α) = ⟦a ⬝ d⟧
+  := fun a_1 => ExpClass_app rfl a_1
 
-lemma ExpClass.app_fun : (⟦a⟧ : ExpClass (β ⇒' α)) = ⟦b⟧ →  (⟦a ⬝ c⟧ : ExpClass α) = ⟦b ⬝ c⟧
-  := fun a_1 => ExpClass.app a_1 rfl
+lemma ExpClass_app_fun : (⟦a⟧ : ExpClass (β ⇒' α)) = ⟦b⟧ →  (⟦a ⬝ c⟧ : ExpClass α) = ⟦b ⬝ c⟧
+  := fun a_1 => ExpClass_app a_1 rfl
 
-lemma ExpClass.recN_zero : (⟦recN ⬝ e ⬝ f ⬝ zero⟧ : ExpClass α) = ⟦e⟧ :=
+lemma ExpClass_recN_zero : (⟦recN ⬝ e ⬝ f ⬝ zero⟧ : ExpClass α) = ⟦e⟧ :=
   by
     have convr.recN_zero' := @convr.recN_zero
-
-    simp_rw [ExpClass.def] at *; dsimp [Eq'] at *
-
+    translate `convr `convr_Setoid
     apply convr.recN_zero'
 
 
 
-lemma ExpClass.recN_succ : (⟦recN ⬝ e ⬝ f ⬝ (succ ⬝ n)⟧ : ExpClass α) = ⟦f ⬝ n ⬝ (recN ⬝ e ⬝ f ⬝ n)⟧ :=
+lemma ExpClass_recN_succ : (⟦recN ⬝ e ⬝ f ⬝ (succ ⬝ n)⟧ : ExpClass α) = ⟦f ⬝ n ⬝ (recN ⬝ e ⬝ f ⬝ n)⟧ :=
   by
     have convr.recN_succ' := @convr.recN_succ
-
-    simp_rw [ExpClass.def] at *; dsimp [Eq'] at *
-
+    translate `convr `convr_Setoid
     apply convr.recN_succ'
 
 
@@ -578,22 +507,22 @@ lemma convr_R_iff : ∀ e e', convr e e' → (R α e ↔ R α e') :=
     apply Iff.intro
     · intro a_r_nbe
       -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧":
-      simp_rw [ExpClass.def] at *; dsimp [Eq'] at *
+      translate `convr `convr_Setoid
 
       -- Add soundness Lemma
       have soundness' := @soundness
-      simp_rw [ExpClass.def] at *; dsimp [Eq'] at *
+      translate `convr `convr_Setoid
 
       -- b ~ a ~ nbe a = nbe b
       -- "rewrite [← a_r_b, a_r_nbe, soundness a_r_b]"
       rw [← a_r_b, a_r_nbe, soundness' a_r_b]
     · intro b_r_nbe
       -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧":
-      simp_rw [ExpClass.def] at *; dsimp [Eq'] at *
+      translate `convr `convr_Setoid
 
       -- Add soundness Lemma
       have soundness' := @soundness
-      simp_rw [ExpClass.def] at *; dsimp [Eq'] at *
+      translate `convr `convr_Setoid
 
       -- a ~ b ~ nbe b = nbe a
       -- "rewrite [a_r_b, b_r_nbe, ← soundness a_r_b]"
@@ -607,11 +536,11 @@ lemma convr_R_iff : ∀ e e', convr e e' → (R α e ↔ R α e') :=
       apply And.intro
       · have f1_r_nbe := R_convr_nbe R_f1; clear R_f1
         -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧":
-        simp_rw [ExpClass.def] at *; dsimp [Eq'] at *
+        translate `convr `convr_Setoid
 
         -- Add soundness Lemma
         have soundness' := @soundness
-        simp_rw [ExpClass.def] at *; dsimp [Eq'] at *
+        translate `convr `convr_Setoid
 
         -- f2 ~ f1 ~ nbe f1 = nbe f2
         -- "rewrite [← f1_r_f2, f1_r_nbe, soundness f1_r_f2]"
@@ -625,11 +554,11 @@ lemma convr_R_iff : ∀ e e', convr e e' → (R α e ↔ R α e') :=
       apply And.intro
       · have f2_r_nbe := R_convr_nbe R_f2; clear R_f2
         -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧":
-        simp_rw [ExpClass.def] at *; dsimp [Eq'] at *
+        translate `convr `convr_Setoid
 
         -- Add soundness Lemma
         have soundness' := @soundness
-        simp_rw [ExpClass.def] at *; dsimp [Eq'] at *
+        translate `convr `convr_Setoid
 
         -- f1 ~ f2 ~ nbe f2 = nbe f1
         -- "rewrite [f1_r_f2, f2_r_nbe, ← soundness f1_r_f2]"
