@@ -1,4 +1,5 @@
-import Mathlib.Tactic
+import Tactic.setoidRw
+
 -- From: https://cs.ioc.ee/ewscs/2009/dybjer/mainPalmse-revised.pdf
 
 inductive Exp (α : Type)
@@ -17,11 +18,8 @@ inductive convr : (Exp α) → (Exp α) → Prop
 | app {a b c d : Exp α}    : convr (a) (b) → convr (c) (d) → convr (a.app c) (b.app d)
 
 
-
-
-
 -- Setoid instance here:
-instance ExpClass.Setoid : Setoid (Exp α) :=
+instance convr_Setoid : Setoid (Exp α) :=
   { r := convr
     iseqv :=
       { refl := λ _ => convr.refl
@@ -29,41 +27,6 @@ instance ExpClass.Setoid : Setoid (Exp α) :=
         trans := convr.trans
       }
   }
-
-def ExpClass α := Quotient (@ExpClass.Setoid α)
-
-lemma ExpClass.def {e1 e2 : Exp α} :
-  convr e1 e2 ↔ (⟦e1⟧ : ExpClass α) = ⟦e2⟧ :=
-  by
-  apply Iff.intro
-  exact fun a => Quotient.sound a
-  exact fun a => Quotient.exact a
-
-lemma ExpClass.assoc {e e' e'' : Exp α} :
-  (⟦(e.app e').app e''⟧ : ExpClass α) = ⟦e.app (e'.app e'')⟧
-  := ExpClass.def.mp convr.assoc
-
-lemma ExpClass.id_left {e  : Exp α} : (⟦(Exp.id).app e⟧ : ExpClass α) = ⟦e⟧
-  := ExpClass.def.mp convr.id_left
-
-lemma ExpClass.id_right {e  : Exp α} : (⟦e.app Exp.id⟧ : ExpClass α) = ⟦e⟧
-  := ExpClass.def.mp convr.id_right
-
--- In Sozeau's notation:
--- Proper ( ≈ ++> ≈ ++> ≈ ) app
-lemma ExpClass.app {a b c d : Exp α} : (⟦a⟧ : ExpClass α) = ⟦b⟧ → (⟦c⟧ : ExpClass α) = ⟦d⟧ →  (⟦a.app c⟧ : ExpClass α) = ⟦b.app d⟧
-  :=
-  by
-  rewrite [← ExpClass.def, ← ExpClass.def, ← ExpClass.def]
-  exact fun a_1 a_2 => convr.app a_1 a_2
-
-lemma ExpClass.app_arg {a c d : Exp α} : (⟦c⟧ : ExpClass α) = ⟦d⟧ →  (⟦a.app c⟧ : ExpClass α) = ⟦a.app d⟧
-  := fun a_1 => ExpClass.app rfl a_1
-
-lemma ExpClass.app_fun {a b c : Exp α} : (⟦a⟧ : ExpClass α) = ⟦b⟧ →  (⟦a.app c⟧ : ExpClass α) = ⟦b.app c⟧
-  := fun a_1 => ExpClass.app a_1 rfl
-
-
 
 
 def eval : (Exp α) → (Exp α → Exp α)
@@ -82,11 +45,14 @@ by
     specialize d_ih b
     specialize c_ih (eval d b)
     -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧"
-    (replace c_ih := ExpClass.def.mp c_ih); replace d_ih := ExpClass.def.mp d_ih
-    apply ExpClass.def.mpr
+    have convr.assoc' := @convr.assoc
+    have convr.app'   := @convr.app
+    translate `convr `convr_Setoid
+    hide convr.assoc'
+    hide convr.app'
     -- (c ⬝ d) ⬝ b ~ c ⬝ (d ⬝ b) ~ c ⬝ (eval d b) ~ eval c (eval d b)
     -- "rewrite [convr.assoc, d_ih, c_ih]"
-    rw [ExpClass.assoc, ExpClass.app_arg d_ih, c_ih]
+    rw [convr.assoc', convr.app' rfl d_ih, c_ih]
 
   case id =>
     intro b
@@ -133,11 +99,14 @@ by
   · unfold nbe reify
     intro h0
     -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧"
-    apply ExpClass.def.mpr
+    have convr.id_right' := @convr.id_right
+    have eval_lemma1'    := @eval_lemma1
+    translate `convr `convr_Setoid
+    hide convr.id_right'
+    hide eval_lemma1'
     -- e ~ e ⬝ id ~ nbe e = nbe e' ~ e' ⬝ id ~ e'
     -- "rewrite [← convr.id_right, eval_lemma1 e Exp.id, h0, ← eval_lemma1 e' Exp.id, convr.id_right]"
-    rw [← ExpClass.id_right, ExpClass.def.mp $ eval_lemma1 e Exp.id, h0,
-        ← ExpClass.def.mp $ eval_lemma1 e' Exp.id, ExpClass.id_right]
+    rw [← convr.id_right', eval_lemma1' e Exp.id, h0, ← eval_lemma1' e' Exp.id, convr.id_right']
 
 -- Python code to quickly generate examples:
 /-
@@ -177,34 +146,48 @@ example : convr
           ( (zero.app zero).app (one.app (two.app (zero.app three)))) :=
   by
   -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧"
-  apply ExpClass.def.mpr
-
+  have convr.id_left' := @convr.id_left
+  have convr.assoc'   := @convr.assoc
+  have convr.app'     := @convr.app
+  translate `convr `convr_Setoid
+  hide convr.id_left'
+  hide convr.assoc'
+  hide convr.app'
   -- "rw (config := {occs := .pos [1]}) [@convr.id_left zero]"
   unfold zero
-  rewrite [ExpClass.app_arg $ ExpClass.app_fun $ @ExpClass.id_left ℕ Exp.id]
+  rewrite [convr.app' rfl (convr.app' (@convr.id_left' ℕ Exp.id) rfl)]
   -- "rewrite [convr.assoc]"
-  rewrite [ExpClass.assoc]
+  rewrite [convr.assoc']
   -- "rewrite [← convr.id_left]"
-  rewrite [← ExpClass.id_left]
-  -- "rw (config := {occs := .pos [1]}) [← @convr.id_left zero]"
-  rw [ExpClass.app_fun (ExpClass.id_left).symm]
+  rewrite [← convr.id_left']
+  --"rw (config := {occs := .pos [1]}) [← @convr.id_left' ℕ zero]"
+  rw [convr.app' (convr.id_left').symm rfl]
 
 -- ∀ x y, ((x, (0,0)), y) ~ (x, (y, (0,0)))
 example : ∀ x y : Exp ℕ, convr ((x.app (zero.app zero)).app y) (x.app (y.app (zero.app zero))) :=
   by
   -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧"
-  simp_rw [ExpClass.def]
+  have convr.id_left' := @convr.id_left
+  have convr.id_right':= @convr.id_right
+  have convr.assoc'   := @convr.assoc
+  have convr.app'     := @convr.app
+  translate `convr `convr_Setoid
+  hide convr.id_left'
+  hide convr.id_right'
+  hide convr.assoc'
+  hide convr.app'
+
   unfold zero
   -- ((x, (0,0)), y) ~ ((x, 0), y)
   -- "rewrite [@ExpClass.id_left ℕ Exp.id]"
-  simp_rw [ExpClass.app_fun $ ExpClass.app_arg $ @ExpClass.id_left ℕ Exp.id]
+  simp_rw [convr.app' rfl (convr.app' rfl (@convr.id_left' ℕ Exp.id))]
   -- ((x, 0), y) ~ (x,y)
   -- "rewrite [ExpClass.id_right]"
-  simp_rw [ExpClass.app_fun $ ExpClass.id_right]
+  simp_rw [convr.app' rfl (convr.id_right')]
   -- rhs:  (x, (y, (0,0))) ~ (x, (y,0))
   -- "rewrite [ExpClass.id_right]"
-  simp_rw [ExpClass.app_arg $ ExpClass.app_arg $ ExpClass.id_right]
+  simp_rw [convr.app' (convr.app' rfl (convr.id_right')) rfl]
   -- rhs:  (x, (y,0)) ~ (x,y)
   -- "rewrite [ExpClass.id_right]"
-  simp_rw [ExpClass.app_arg $ ExpClass.id_right]
+  simp_rw [convr.app' (convr.id_right') rfl]
   aesop

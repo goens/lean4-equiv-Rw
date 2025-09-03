@@ -44,27 +44,20 @@ def Ty_inter : Ty → Type
 | arrow a b => Exp (a ⇒' b) × (Ty_inter a → Ty_inter b)
 
 
+def numeral : ℕ → Exp Ty.Nat
+| 0 => zero
+
+| n+1 => succ ⬝ (numeral n)
+
+
+def reify (α : Ty) (e : Ty_inter α) : Exp α :=
+  match α,e with
+  | Ty.Nat, e            => numeral e
+
+  | Ty.arrow α β, (c, f) => c
+
+
 def appsem {a b : Ty} (t : Ty_inter (a ⇒' b)) (e' : Ty_inter a) : Ty_inter b := (t.snd e')
-
-def reify (a : Ty) (e : Ty_inter a) : Exp a :=
-/-
-  match a with
-| Ty.Nat =>
-  match e with
-  | (0 : ℕ)    => zero
-  | n+1         => succ ⬝ (reify Ty.Nat n)
-
-| Ty.arrow a b =>
-  match e with
-  | (c, f) => c
--/
-by
-  cases a
-  case Nat =>
-    induction e
-    case zero           => exact zero
-    case succ _ reify_n => exact (succ ⬝ reify_n)
-  case arrow a b        => exact e.fst
 
 
 def Exp_inter (a : Ty) : (e : Exp a) → Ty_inter a
@@ -174,28 +167,6 @@ lemma convr_R_iff : ∀ e e', convr e e' → (R α e ↔ R α e') :=
         rcases R_f2 with ⟨_, h0⟩
         exact h0 e' Re'
 
-
-def numeral : ℕ → Exp Ty.Nat
-| 0 => zero
-
-| n+1 => succ ⬝ (numeral n)
-
-lemma reify_Nat : ∃ n, reify Ty.Nat k = (numeral n) :=
-  by
-  induction k
-  case zero =>
-    use 0; rfl
-
-  case succ k' IH =>
-    rcases IH with ⟨n, eq⟩
-    use n+1
-    calc
-      reify Ty.Nat k'.succ = succ ⬝ (reify Ty.Nat k') := rfl
-      _ = succ ⬝ (numeral n) := by rw [eq]
-      _ = numeral (n+1)      := rfl
-
-lemma nbe_Nat : ∃ n, nbe Ty.Nat e = numeral n := reify_Nat
-
 lemma R_numeral : R Ty.Nat (numeral n) :=
   by
   unfold R
@@ -292,26 +263,21 @@ lemma all_R {e : Exp a} : R a e :=
           have h0 : convr (recN ⬝ e') (recN ⬝ nbe α e') := (convr.refl).app Re'
           exact h0.app Re''
         · intro n Rn
-          have convr_n := Rn
-          unfold R at convr_n
-          apply (convr_R_iff (recN ⬝ e' ⬝ e'' ⬝ n) (recN ⬝ e' ⬝ e'' ⬝ (nbe Ty.Nat n)) (convr.refl.app Rn)).mpr
-          have eq : ∃ n₁, nbe Ty.Nat n = numeral n₁ := nbe_Nat
-          rcases eq with ⟨n₁, eq⟩; rewrite [eq] at convr_n ⊢; clear eq
-          (have R_numeral_n₁ : R Ty.Nat (numeral n₁) := by exact (convr_R_iff n (numeral n₁) convr_n).mp Rn); clear Rn convr_n n
-          induction n₁
+          have n_r_nbe := Rn; unfold R at n_r_nbe
+          -- "rewrite [n_r_nbe]"
+          rewrite [convr_R_iff (recN ⬝ e' ⬝ e'' ⬝ n) (recN ⬝ e' ⬝ e'' ⬝ (nbe Ty.Nat n)) (convr.refl.app n_r_nbe)]
+          unfold nbe; simp [reify]
+          induction ((Exp_inter Ty.Nat n))
           · unfold numeral
             -- convr-rewriting here
             exact (convr_R_iff (recN ⬝ e' ⬝ e'' ⬝ zero) e' convr.recN_zero).mpr Re'
           · rename_i n' IH
-            unfold numeral at R_numeral_n₁ ⊢
-            -- convr-rewriting here
-            apply (convr_R_iff (recN ⬝ e' ⬝ e'' ⬝ (succ ⬝ numeral n')) (e'' ⬝ (numeral n') ⬝ (recN ⬝ e' ⬝ e'' ⬝ (numeral n'))) convr.recN_succ).mpr
+            apply (convr_R_iff (.recN ⬝ e' ⬝ e'' ⬝ (.succ ⬝ numeral n')) (e'' ⬝ (numeral n') ⬝ (.recN ⬝ e' ⬝ e'' ⬝ (numeral n'))) convr.recN_succ).mpr
             have R_numeral_n' : R Ty.Nat (numeral n') := by exact R_numeral
-            specialize IH R_numeral_n'
-            rcases Re'' with ⟨_, h0⟩
+            rcases Re'' with ⟨left, h0⟩; clear left
             specialize h0 (numeral n') R_numeral_n'
-            rcases h0 with ⟨_, h0⟩
-            exact h0 (recN ⬝ e' ⬝ e'' ⬝ numeral n') IH
+            rcases h0 with ⟨left, h0⟩; clear left
+            exact h0 (.recN ⬝ e' ⬝ e'' ⬝ numeral n') IH
 
 
 -- e ~ nbe a e
