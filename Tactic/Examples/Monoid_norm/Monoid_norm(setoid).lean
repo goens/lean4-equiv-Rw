@@ -47,9 +47,13 @@ by
     -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧"
     have convr.assoc' := @convr.assoc
     have convr.app'   := @convr.app
-    translate `convr `convr_Setoid
+    translate convr convr_Setoid
     hide convr.assoc'
     hide convr.app'
+
+    --revert c_ih d_ih  b d c α
+    --generalize eq : @Exp.app = Exp.app_aux
+
     -- (c ⬝ d) ⬝ b ~ c ⬝ (d ⬝ b) ~ c ⬝ (eval d b) ~ eval c (eval d b)
     -- "rewrite [convr.assoc, d_ih, c_ih]"
     rw [convr.assoc', convr.app' rfl d_ih, c_ih]
@@ -101,7 +105,7 @@ by
     -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧"
     have convr.id_right' := @convr.id_right
     have eval_lemma1'    := @eval_lemma1
-    translate `convr `convr_Setoid
+    translate convr convr_Setoid
     hide convr.id_right'
     hide eval_lemma1'
     -- e ~ e ⬝ id ~ nbe e = nbe e' ~ e' ⬝ id ~ e'
@@ -149,7 +153,7 @@ example : convr
   have convr.id_left' := @convr.id_left
   have convr.assoc'   := @convr.assoc
   have convr.app'     := @convr.app
-  translate `convr `convr_Setoid
+  translate convr convr_Setoid
   hide convr.id_left'
   hide convr.assoc'
   hide convr.app'
@@ -171,7 +175,7 @@ example : ∀ x y : Exp ℕ, convr ((x.app (zero.app zero)).app y) (x.app (y.app
   have convr.id_right':= @convr.id_right
   have convr.assoc'   := @convr.assoc
   have convr.app'     := @convr.app
-  translate `convr `convr_Setoid
+  translate convr convr_Setoid
   hide convr.id_left'
   hide convr.id_right'
   hide convr.assoc'

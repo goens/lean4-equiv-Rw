@@ -131,16 +131,16 @@ lemma convr_R_iff : ∀ e e', convr e e' → (R α e ↔ R α e') :=
     apply Iff.intro
     · intro a_r_nbe
       -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧":
-      have soundness' := @soundness
-      translate `convr `convr_Setoid
-      hide soundness'
+      have soundness := @soundness
+      translate convr convr_Setoid
+      hide soundness
       -- b ~ a ~ nbe a = nbe b
       -- "rewrite [← a_r_b, a_r_nbe, soundness a_r_b]"
-      rw [← a_r_b, a_r_nbe, soundness' a_r_b]
+      rw [← a_r_b, a_r_nbe, soundness a_r_b]
     · intro b_r_nbe
       -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧":
       have soundness' := @soundness
-      translate `convr `convr_Setoid
+      translate convr convr_Setoid
       hide soundness'
       -- a ~ b ~ nbe b = nbe a
       -- "rewrite [a_r_b, b_r_nbe, ← soundness a_r_b]"
@@ -154,7 +154,7 @@ lemma convr_R_iff : ∀ e e', convr e e' → (R α e ↔ R α e') :=
       · have f1_r_nbe := R_convr_nbe R_f1; clear R_f1
         -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧":
         have soundness' := @soundness
-        translate `convr `convr_Setoid
+        translate convr convr_Setoid
         hide soundness'
         -- f2 ~ f1 ~ nbe f1 = nbe f2
         -- "rewrite [← f1_r_f2, f1_r_nbe, soundness f1_r_f2]"
@@ -169,7 +169,7 @@ lemma convr_R_iff : ∀ e e', convr e e' → (R α e ↔ R α e') :=
       · have f2_r_nbe := R_convr_nbe R_f2; clear R_f2
         -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧":
         have soundness' := @soundness
-        translate `convr `convr_Setoid
+        translate convr convr_Setoid
         hide soundness'
         -- f1 ~ f2 ~ nbe f2 = nbe f1
         -- "rewrite [f1_r_f2, f2_r_nbe, ← soundness f1_r_f2]"
@@ -178,6 +178,29 @@ lemma convr_R_iff : ∀ e e', convr e e' → (R α e ↔ R α e') :=
         rewrite [βIH (f1 ⬝ e') (f2 ⬝ e') (f1_r_f2.app convr.refl)]
         rcases R_f2 with ⟨_, h0⟩
         exact h0 e' Re'
+
+#print convr_R_iff
+
+
+example {α : Ty} {a b : Exp α}
+                        (f : (x y : Exp α) → (@convr α x y) → Nat)
+                        (hf : (x y : Exp α) → (xRy : @convr α x y) → f x y xRy = 3)
+                        (aRb : convr a b)
+                        : (f a b aRb) = 3 :=
+  by
+  printEnv
+  addR_eq `convr `convr_Setoid
+  printEnv
+
+
+  revert aRb hf f b a α
+  generalize eq : @convr = convr'
+  rewrite [convr_eq] at eq
+  subst eq
+  beta_reduce
+  intro α a b f hf aRb
+
+  exact hf a b aRb
 
 
 lemma R_numeral : R Ty.Nat (numeral n) :=
@@ -191,7 +214,7 @@ lemma R_numeral : R Ty.Nat (numeral n) :=
     have eq : nbe Ty.Nat (succ ⬝ numeral n') = succ ⬝ (nbe Ty.Nat $ numeral n') := rfl
     -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧":
     have convr.app' := @convr.app
-    translate `convr `convr_Setoid
+    translate convr convr_Setoid
     hide convr.app'
     -- succ ⬝ numeral n' ~ succ ⬝ nbe (numeral n') = nbe (succ ⬝ numeral n')
     -- "rewrite [IH, eq]"
@@ -211,7 +234,7 @@ lemma all_R {e : Exp a} : R a e :=
         have eq : nbe (b ⇒' a) (K ⬝ e') = K ⬝ nbe a e' := rfl
         -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧"
         have convr.app' := @convr.app
-        translate `convr `convr_Setoid
+        translate convr convr_Setoid
         hide convr.app'
         -- K ⬝ e' ~ K ⬝ nbe e' = nbe (K ⬝ e')
         -- "rewrite [e'_r_nbe, eq]"
@@ -233,7 +256,7 @@ lemma all_R {e : Exp a} : R a e :=
         have eq : nbe ((a ⇒' b) ⇒' a ⇒' c) (S ⬝ x) = S ⬝ nbe (a ⇒' b ⇒' c)  x := rfl
         -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧"
         have convr.app' := @convr.app
-        translate `convr `convr_Setoid
+        translate convr convr_Setoid
         hide convr.app'
         -- S ⬝ x ~ S ⬝ nbe x = nbe (S ⬝ x)
         -- "rewrite [x_r_nbe, eq]"
@@ -244,7 +267,7 @@ lemma all_R {e : Exp a} : R a e :=
           have eq : nbe (a ⇒' c) (S ⬝ x ⬝ y) = S ⬝ nbe (a ⇒' b ⇒' c) x ⬝ nbe (a ⇒' b) y := rfl
           -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧"
           have convr.app' := @convr.app
-          translate `convr `convr_Setoid
+          translate convr convr_Setoid
           hide convr.app'
           -- S ⬝ x ⬝ y ~ S ⬝ nbe x ⬝ y ~ S ⬝ nbe x ⬝ nbe y = nbe (S ⬝ x ⬝ y)
           -- "rewrite [x_r_nbe, y_r_nbe, eq]"
@@ -273,7 +296,7 @@ lemma all_R {e : Exp a} : R a e :=
       have eq : nbe Ty.Nat (succ ⬝ x) = succ ⬝ (nbe Ty.Nat x) := rfl
       -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧"
       have convr.app' := @convr.app
-      translate `convr `convr_Setoid
+      translate convr convr_Setoid
       hide convr.app'
       -- succ ⬝ x ~ succ ⬝ nbe x = nbe (succ ⬝ x)
       -- "rewrite [x_r_nbe, eq]"
@@ -288,7 +311,7 @@ lemma all_R {e : Exp a} : R a e :=
         have eq : nbe ((Ty.Nat ⇒' α ⇒' α) ⇒' Ty.Nat ⇒' α) (recN ⬝ e') = recN ⬝ nbe α e' := rfl
         -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧"
         have convr.app' := @convr.app
-        translate `convr `convr_Setoid
+        translate convr convr_Setoid
         hide convr.app'
         -- recN ⬝ e' ~ recN ⬝ nbe e' = nbe (recN ⬝ e')
         -- "rewrite [e'_r_nbe, eq]"
@@ -297,13 +320,39 @@ lemma all_R {e : Exp a} : R a e :=
         apply And.intro
         · have e'_r_nbe := R_convr_nbe Re'; clear Re'; have e''_r_nbe := R_convr_nbe Re''; clear Re''
           have eq : nbe (Ty.Nat ⇒' α) (recN ⬝ e' ⬝ e'') = recN ⬝ nbe α e' ⬝ nbe (Ty.Nat ⇒' α ⇒' α) e'' := rfl
+          /-
+          calc
+            convr (recN ⬝ e' ⬝ e'') (recN ⬝  (nbe α e') ⬝ (nbe (Ty.Nat ⇒' α ⇒' α) e''))
+              := by apply ((convr.refl).app ?_).app ?_ ; exact e'_r_nbe ; exact e''_r_nbe
+            convr _                 (nbe (Ty.Nat ⇒' α) (recN ⬝ e' ⬝ e''))
+              := convr.refl
+          -/
           -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧"
           have convr.app' := @convr.app
-          translate `convr `convr_Setoid
+          translate convr convr_Setoid
           hide convr.app'
           -- recN ⬝ e' ⬝ e'' ~ recN ⬝ nbe e' ⬝ e'' ~ recN ⬝ nbe e' ⬝ nbe e'' = nbe (recN ⬝ e' ⬝ e'')
           -- "rewrite [e'_r_nbe, e''_r_nbe, eq]"
-          rw [convr.app' (convr.app' rfl e'_r_nbe) rfl, convr.app' rfl e''_r_nbe, eq]
+          /-
+          calc
+            ⟦recN ⬝ e' ⬝ e''⟧ = ⟦recN ⬝  (nbe α e') ⬝ (nbe (Ty.Nat ⇒' α ⇒' α) e'')⟧ :=
+              by
+              apply convr.app' (convr.app' rfl ?_) ?_
+              exact e'_r_nbe
+              exact e''_r_nbe
+            _                 = ⟦nbe (Ty.Nat ⇒' α) (recN ⬝ e' ⬝ e'')⟧ := by rfl
+          -/
+          conv =>
+            lhs
+            apply convr.app' (convr.app' rfl ?_) ?_
+            exact nbe α e'
+            exact nbe (Ty.Nat ⇒' α ⇒' α) e''
+            exact e'_r_nbe
+            exact e''_r_nbe
+          conv =>
+            rhs
+            rewrite [eq]
+          --rw [convr.app' (convr.app' rfl e'_r_nbe) rfl, convr.app' rfl e''_r_nbe, eq]
         · intro n Rn
           have n_r_nbe := Rn; unfold R at n_r_nbe
           -- "rewrite [n_r_nbe]"
@@ -331,7 +380,7 @@ lemma completeness : nbe a e = nbe a e' → convr e e' :=
   intro eq
   -- Translate "convr a b" to "⟦a⟧ = ⟦b⟧"
   have convr_nbe' := @convr_nbe
-  translate `convr `convr_Setoid
+  translate convr convr_Setoid
   hide convr_nbe'
   -- e ~ nbe e = nbe e' ~ e'
   -- "rewrite [convr_nbe, eq, ← convr_nbe]"
@@ -339,3 +388,76 @@ lemma completeness : nbe a e = nbe a e' → convr e e' :=
 
 -- e ~ e' ↔ nbe a e = nbe a e'
 lemma correctness {e e' : Exp a} : convr e e' ↔ nbe a e = nbe a e' := ⟨soundness, completeness⟩
+
+
+
+
+example : (α : Ty) → (a b c : Exp α) → (convr a a) ∧ (convr a b → convr b a) ∧ (convr a b → convr b c → convr a c) :=
+  by
+  /-
+  intro α a b c
+  repeat any_goals apply And.intro
+  · exact convr.refl
+  · exact convr.sym
+  · exact convr.trans
+  -/
+  translate convr convr_Setoid
+  grind
+
+
+
+example :
+      (x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 : Exp Ty.Nat)
+      → (@convr Ty.Nat x1 x13)
+      → (@convr Ty.Nat x10 x5)
+      → (@convr Ty.Nat x4 x12)
+      → (@convr Ty.Nat x7 x12)
+      → (@convr Ty.Nat x14 x6)
+      → (@convr Ty.Nat x14 x9)
+      → (@convr Ty.Nat x12 x12)
+      → (@convr Ty.Nat x12 x17)
+      → (@convr Ty.Nat x20 x3)
+      → (@convr Ty.Nat x7 x1)
+      → (@convr Ty.Nat x3 x14)
+      → (@convr Ty.Nat x9 x18)
+      → (@convr Ty.Nat x19 x14)
+      → (@convr Ty.Nat x12 x6)
+      → (@convr Ty.Nat x10 x4)
+      → (@convr Ty.Nat x6 x8)
+      → (@convr Ty.Nat x16 x9)
+      → (@convr Ty.Nat x6 x17)
+  := by
+    translate convr convr_Setoid
+    grind
+
+example :
+      (x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 : Exp Ty.Nat)
+      → (@convr Ty.Nat x12 x4)
+      → (@convr Ty.Nat x5 x1)
+      → (@convr Ty.Nat x6 x9)
+      → (@convr Ty.Nat x17 x7)
+      → (@convr Ty.Nat x1 x9)
+      → (@convr Ty.Nat x4 x17)
+      → (@convr Ty.Nat x17 x12)
+  := by
+    translate convr convr_Setoid
+    grind
+
+def r : Nat → Nat → Prop := sorry
+
+instance r_Setoid : Setoid Nat :=
+  { r := r
+    iseqv := sorry
+  }
+example :
+      (x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 : Nat)
+      → (r x12 x4)
+      → (r x5 x1)
+      → (r x6 x9)
+      → (r x17 x7)
+      → (r x1 x9)
+      → (r x4 x17)
+      → (r (x17) (x12))
+  := by
+    translate r r_Setoid
+    grind
