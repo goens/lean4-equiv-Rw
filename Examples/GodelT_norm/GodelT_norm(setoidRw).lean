@@ -1,4 +1,4 @@
-import Tactic.setoidRw
+import Tactic.replace_R
 
 -- From: https://cs.ioc.ee/ewscs/2009/dybjer/mainPalmse-revised.pdf
 
@@ -132,7 +132,7 @@ by
   unfold nbe
   intro h1
 
-  translate R R_Setoid
+  replace_R R R_Setoid
   simp only [Exp_inter'_mk] at *
 
   grind
@@ -168,14 +168,14 @@ lemma Red_resp : ∀ e e', R e e' → (Red α e = Red α e')  :=
     apply Iff.intro
     · intro a_r_nbe
       -- Translate "R a b" to "⟦a⟧ = ⟦b⟧":
-      translate R R_Setoid
+      replace_R R R_Setoid
       simp only [nbe'_mk] at *
       -- b ~ a ~ nbe a = nbe b
       -- "rewrite [← a_r_b, a_r_nbe, soundness a_r_b]"
       grind
     · intro b_r_nbe
       -- Translate "R a b" to "⟦a⟧ = ⟦b⟧":
-      translate R R_Setoid
+      replace_R R R_Setoid
       simp only [nbe'_mk] at *
       -- a ~ b ~ nbe b = nbe a
       -- "rewrite [a_r_b, b_r_nbe, ← soundness a_r_b]"
@@ -188,7 +188,7 @@ lemma Red_resp : ∀ e e', R e e' → (Red α e = Red α e')  :=
       apply And.intro
       · have f1_r_nbe := Red_R_nbe R_f1; clear R_f1
         -- Translate "R a b" to "⟦a⟧ = ⟦b⟧":
-        translate R R_Setoid
+        replace_R R R_Setoid
         simp only [nbe'_mk] at *
         -- f2 ~ f1 ~ nbe f1 = nbe f2
         -- "rewrite [← f1_r_f2, f1_r_nbe, soundness f1_r_f2]"
@@ -202,13 +202,13 @@ lemma Red_resp : ∀ e e', R e e' → (Red α e = Red α e')  :=
       apply And.intro
       · have f2_r_nbe := Red_R_nbe R_f2; clear R_f2
         -- Translate "R a b" to "⟦a⟧ = ⟦b⟧":
-        translate R R_Setoid
+        replace_R R R_Setoid
         simp only [nbe'_mk] at *
         -- f1 ~ f2 ~ nbe f2 = nbe f1
         -- "rewrite [f1_r_f2, f2_r_nbe, ← soundness f1_r_f2]"
         grind
       · intro e' Re'
-        translate R R_Setoid
+        replace_R R R_Setoid
         --simp only [app'_mk, Exp_inter'_mk, nbe'_mk] at *
         rewrite [βIH (f1 ⬝ e') (f2 ⬝ e') (by simp only [app'_mk] at * ; grind)]
         rcases R_f2 with ⟨left, h0⟩ ; clear left
@@ -233,7 +233,7 @@ lemma Red_numeral : Red nat (numeral n) :=
     have eq : nbe nat (succ ⬝ numeral n') = succ ⬝ (nbe nat $ numeral n') := rfl
     rewrite [eq] ; clear eq
     -- Translate "R a b" to "⟦a⟧ = ⟦b⟧":
-    translate R R_Setoid
+    replace_R R R_Setoid
     simp only [app'_mk] at *
     -- succ ⬝ numeral n' ~ succ ⬝ nbe (numeral n')
     -- "rewrite [IH]"
@@ -254,7 +254,7 @@ lemma all_Red {e : Exp a} : Red a e :=
         have eq : nbe (b ⇒' a) (K ⬝ e') = K ⬝ nbe a e' := rfl
         rewrite [eq] ; clear eq
         -- Translate "R a b" to "⟦a⟧ = ⟦b⟧"
-        translate R R_Setoid
+        replace_R R R_Setoid
         simp only [app'_mk] at *
         -- K ⬝ e' ~ K ⬝ nbe e'
         -- "rewrite [e'_r_nbe]"
@@ -264,7 +264,7 @@ lemma all_Red {e : Exp a} : Red a e :=
 
         -- Translate "R a b" to "⟦a⟧ = ⟦b⟧"
         have R.K := @R.K
-        translate R R_Setoid
+        replace_R R R_Setoid
         simp only [Red'_mk, app'_mk] at *
         hide R.K
         -- R (K ⬝ e' ⬝ e'') = R e'
@@ -281,7 +281,7 @@ lemma all_Red {e : Exp a} : Red a e :=
         have eq : nbe ((a ⇒' b) ⇒' a ⇒' c) (S ⬝ x) = S ⬝ nbe (a ⇒' b ⇒' c)  x := rfl
         rewrite [eq] ; clear eq
         -- Translate "R a b" to "⟦a⟧ = ⟦b⟧"
-        translate R R_Setoid
+        replace_R R R_Setoid
         simp only [app'_mk] at *
         -- S ⬝ x ~ S ⬝ nbe x
         -- "rewrite [x_r_nbe]"
@@ -292,7 +292,7 @@ lemma all_Red {e : Exp a} : Red a e :=
           have eq : nbe (a ⇒' c) (S ⬝ x ⬝ y) = S ⬝ nbe (a ⇒' b ⇒' c) x ⬝ nbe (a ⇒' b) y := rfl
           rewrite [eq] ; clear eq
           -- Translate "R a b" to "⟦a⟧ = ⟦b⟧"
-          translate R R_Setoid
+          replace_R R R_Setoid
           simp only [app'_mk]
           -- S ⬝ x ⬝ y ~ S ⬝ nbe x ⬝ y ~ S ⬝ nbe x ⬝ nbe y
           -- "rewrite [x_r_nbe, y_r_nbe]"
@@ -304,7 +304,7 @@ lemma all_Red {e : Exp a} : Red a e :=
 
           -- Translate "R a b" to "⟦a⟧ = ⟦b⟧"
           have R.S := @R.S
-          translate R R_Setoid
+          replace_R R R_Setoid
           simp only [Red'_mk, app'_mk] at *
           hide R.S
           -- "rewrite [R.S]"
@@ -326,7 +326,7 @@ lemma all_Red {e : Exp a} : Red a e :=
       rewrite [eq] ; clear eq
 
       -- Translate "R a b" to "⟦a⟧ = ⟦b⟧"
-      translate R R_Setoid
+      replace_R R R_Setoid
       simp only [app'_mk] at *
       -- succ ⬝ x ~ succ ⬝ nbe x
       -- "rewrite [x_r_nbe]"
@@ -341,7 +341,7 @@ lemma all_Red {e : Exp a} : Red a e :=
         have eq : nbe ((nat ⇒' α ⇒' α) ⇒' nat ⇒' α) (recN ⬝ e') = recN ⬝ nbe α e' := rfl
         rewrite [eq] ; clear eq
         -- Translate "R a b" to "⟦a⟧ = ⟦b⟧"
-        translate R R_Setoid
+        replace_R R R_Setoid
         simp only [app'_mk] at *
         -- recN ⬝ e' ~ recN ⬝ nbe e'
         -- "rewrite [e'_r_nbe]"
@@ -352,7 +352,7 @@ lemma all_Red {e : Exp a} : Red a e :=
           have eq : nbe (nat ⇒' α) (recN ⬝ e' ⬝ e'') = recN ⬝ nbe α e' ⬝ nbe (nat ⇒' α ⇒' α) e'' := rfl
           rewrite [eq] ; clear eq
 
-          translate R R_Setoid
+          replace_R R R_Setoid
           simp only [app'_mk] at *
 
           grind
@@ -365,7 +365,7 @@ lemma all_Red {e : Exp a} : Red a e :=
           · unfold numeral
 
             have R.recN_zero := @R.recN_zero
-            translate R R_Setoid
+            replace_R R R_Setoid
             simp only [Red'_mk, app'_mk] at *
             hide R.recN_zero
             -- "rewrite [R.recN_zero]"
@@ -378,7 +378,7 @@ lemma all_Red {e : Exp a} : Red a e :=
             rcases h0 with ⟨left, h0⟩; clear left
 
             have R.recN_succ := @R.recN_succ
-            translate R R_Setoid
+            replace_R R R_Setoid
             simp only [Red'_mk] at *
             hide R.recN_succ
 
@@ -395,7 +395,7 @@ lemma completeness : nbe a e = nbe a e' → R e e' :=
   intro eq
   -- Translate "R a b" to "⟦a⟧ = ⟦b⟧"
   have R_nbe := @R_nbe
-  translate R R_Setoid
+  replace_R R R_Setoid
   hide R_nbe
   -- e ~ nbe e = nbe e' ~ e'
   -- "rewrite [R_nbe, eq, ← R_nbe]"
@@ -438,7 +438,7 @@ example : (α : Ty) → (a b c : Exp α) → (R a a) ∧ (R a b → R b a) ∧ (
   · exact R.sym
   · exact R.trans
   -/
-  translate R R_Setoid
+  replace_R R R_Setoid
   grind
 
 
@@ -464,7 +464,7 @@ example :
       → (@R nat x16 x9)
       → (@R nat x6 x17)
   := by
-    translate R R_Setoid
+    replace_R R R_Setoid
     grind
 
 example :
@@ -477,11 +477,11 @@ example :
       → (@R nat x4 x17)
       → (@R nat x17 x12)
   := by
-    translate R R_Setoid
+    replace_R R R_Setoid
     grind
 
 example : ∀ x y : Exp (nat ⇒' nat), R (x.app (x.app (x.app zero))) (x.app (y.app (x.app zero))) :=
   by
-  translate R R_Setoid
+  replace_R R R_Setoid
   simp only [app'_mk] at *
   sorry

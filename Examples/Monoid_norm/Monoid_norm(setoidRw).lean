@@ -1,4 +1,4 @@
-import Tactic.setoidRw
+import Tactic.replace_R
 
 -- From: https://cs.ioc.ee/ewscs/2009/dybjer/mainPalmse-revised.pdf
 
@@ -56,7 +56,7 @@ by
     specialize c_ih (eval d b)
     -- Translate "R a b" to "⟦a⟧ = ⟦b⟧"
     have R.assoc := @R.assoc
-    translate R R_Setoid
+    replace_R R R_Setoid
     simp only [app_mk] at *
     hide R.assoc
     -- (c ⬝ d) ⬝ b ~ c ⬝ (d ⬝ b) ~ c ⬝ (eval d b) ~ eval c (eval d b)
@@ -112,7 +112,7 @@ by
       clear * - a_r_b c_r_d
       unfold nbe reify
       -- Translate "R a b" to "⟦a⟧ = ⟦b⟧"
-      translate R R_Setoid
+      replace_R R R_Setoid
       simp only [app_mk, eval'_mk] at *
 
       grind
@@ -122,7 +122,7 @@ by
     -- Translate "R a b" to "⟦a⟧ = ⟦b⟧"
     have R.id_right := @R.id_right
     have eval_lemma1:= @eval_lemma1
-    translate R R_Setoid
+    replace_R R R_Setoid
     simp only [app_mk, eval'_mk] at *
     hide R.id_right
     hide eval_lemma1
@@ -148,7 +148,7 @@ example : R
   -- Translate "R a b" to "⟦a⟧ = ⟦b⟧"
   have R.id_left  := @R.id_left
   have R.assoc   := @R.assoc
-  translate R R_Setoid
+  replace_R R R_Setoid
   simp only [app_mk] at *
   hide R.id_left
   hide R.assoc
@@ -173,7 +173,7 @@ example : ∀ x y : Exp Nat, R ((x.app (zero.app zero)).app y) (x.app (y.app (ze
   have R.id_right':= @R.id_right
   have R.assoc'   := @R.assoc
   have R.app'     := @R.app
-  translate R R_Setoid
+  replace_R R R_Setoid
   simp only [app_mk] at *
   hide R.id_left'
   hide R.id_right'
@@ -189,7 +189,7 @@ example : ∀ x y : Exp ℕ, R ((x.app (zero.app zero)).app y) (x.app (y.app (ze
   -- Translate "R a b" to "⟦a⟧ = ⟦b⟧"
   have R.id_right:= @R.id_right
   have R.app     := @R.app
-  translate R R_Setoid
+  replace_R R R_Setoid
   hide R.id_right
   hide R.app
 
@@ -218,7 +218,7 @@ example : ∀ x y : Exp Nat, R ((x.app (zero.app zero)).app y) (x.app (y.app (ze
   have R.id_right:= @R.id_right
 
   -- Translate "R a b" to "⟦a⟧ = ⟦b⟧"
-  translate R R_Setoid
+  replace_R R R_Setoid
   simp only [app_mk] at *
 
   aesop
@@ -232,7 +232,7 @@ example {α β} : ∀ a b : Exp α, ∀ c d : Exp β,
   have R.id_right:= @R.id_right
 
   -- Translate "R a b" to "⟦a⟧ = ⟦b⟧"
-  translate R R_Setoid
+  replace_R R R_Setoid
   simp only [app_mk] at *
 
   aesop

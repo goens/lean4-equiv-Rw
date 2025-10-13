@@ -173,7 +173,7 @@ elab "addR_eq" R:name R_Setoid:name : tactic => do addR_eq R.getName R_Setoid.ge
 
 -- R        : (x₁ : T₁) → (x₂ : T₂) → ⋯ → (xₙ : Tₙ) → (_ : X) → (_ : X) → Prop
 -- R_Setoid : (x₁ : T₁) → (x₂ : T₂) → ⋯ → (xₙ : Tₙ) → Setoid X
-def translate (R : Name) (R_Setoid : Name) : TacticM Unit :=
+def replace_R (R : Name) (R_Setoid : Name) : TacticM Unit :=
   withMainContext do
     -- Add "R_eq : R = λ x₁ ⋯ xₙ e1 e2 => ⟦e1⟧ = ⟦e2⟧" to the environment
     let env       := ← getEnv
@@ -212,7 +212,7 @@ def translate (R : Name) (R_Setoid : Name) : TacticM Unit :=
     let n := localHyps.length
     let (_, goal) := ← goal.introN n (givenNames := localHyps)
     replaceMainGoal [goal]
-elab "translate" R:ident R_Setoid:ident : tactic => do translate @R.getId @R_Setoid.getId
+elab "replace_R" R:ident R_Setoid:ident : tactic => do replace_R @R.getId @R_Setoid.getId
 /-
 Step 1: Revert EVERYTHING to get a single Target with an empty LocalCtxt
 
