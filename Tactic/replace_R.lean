@@ -170,7 +170,6 @@ def addR_eq (R : Name) (R_Setoid : Name) : TermElabM Unit := do
   compileDecl decl
 elab "addR_eq" R:name R_Setoid:name : tactic => do addR_eq R.getName R_Setoid.getName
 
-
 -- R        : (x₁ : T₁) → (x₂ : T₂) → ⋯ → (xₙ : Tₙ) → (_ : X) → (_ : X) → Prop
 -- R_Setoid : (x₁ : T₁) → (x₂ : T₂) → ⋯ → (xₙ : Tₙ) → Setoid X
 def replace_R (R : Name) (R_Setoid : Name) : TacticM Unit :=
